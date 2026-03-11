@@ -8,6 +8,7 @@ mod flows;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::Value;
+use uuid::Uuid;
 
 use antavo::{client::AntavoClient, state::CustomerState};
 use config::Config;
@@ -83,6 +84,22 @@ enum Command {
         /// Filter by status: pending, accepted, rejected
         #[arg(long)]
         status: Option<String>,
+    },
+
+    /// Fire a checkout event with auto-generated transaction_id and today's date
+    ///
+    /// Example: checkout --total 2000
+    /// Example: checkout --total 2000 --burn 150 --channel restaurant
+    Checkout {
+        /// Sale total in NOK
+        #[arg(long)]
+        total: f64,
+        /// Points to burn (optional)
+        #[arg(long)]
+        burn: Option<i64>,
+        /// Channel (default: hotel)
+        #[arg(long, default_value = "hotel")]
+        channel: String,
     },
 
     /// Adjust a pending transaction's burn or total by delta, then call checkout_update
@@ -193,6 +210,19 @@ async fn main() -> Result<()> {
                 events::point_sub::point_sub(&client, points, &reason).await?;
             }
         },
+
+        Command::Checkout { total, burn, channel } => {
+            let tx_id = format!("TX-{}", &Uuid::new_v4().to_string()[..8]);
+            let tx_date = jiff::Timestamp::now().strftime("%Y-%m-%d").to_string();
+            events::checkout::checkout(&client, events::checkout::CheckoutParams {
+                transaction_id: tx_id,
+                total,
+                channel,
+                transaction_date: tx_date,
+                currency: "NOK".to_string(),
+                points_burned: burn,
+            }).await?;
+        }
 
         Command::Transactions { id } => {
             let filter = id.as_deref();

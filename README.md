@@ -60,15 +60,18 @@ Customer: a3f8c21d-9e47-4b1c-8d02-f5e67a890bcd
 
 ---
 
-### `reset` — Drain points to zero spendable
+### `reset` — Full customer state reset
 
 ```bash
 cargo run -- reset
 ```
 
-Sends `point_sub(point_balance)` to bring `point_balance` and `spendable` to 0. Use this to get a clean baseline before running a flow without creating a new customer.
+Brings the customer to a clean baseline in three steps:
+1. **Rejects** all `pending` transactions (via `checkout_reject`)
+2. **Refunds** all `accepted` transactions (via `refund`)
+3. **Drains** remaining `point_balance` to 0 via `point_sub`
 
-> Warns if `reserved > 0` or `pending > 0` — those require manual cleanup first (pending checkouts must be accepted/rejected; reservations need `release_points` with the original transaction ID).
+> Warns if `reserved > 0` — reservations cannot be auto-released without the original transaction ID; run `release_points` manually first.
 
 ---
 
@@ -107,16 +110,43 @@ Shorthand for firing `point_add` / `point_sub` events. `--reason` defaults to `"
 
 ---
 
+### `use` — Set active customer
+
+```bash
+cargo run -- use <customer-id>
+```
+
+Updates `ANTAVO_CUSTOMER_ID` in `.env`. Equivalent to editing the file manually. Useful when switching between test customers.
+
+---
+
 ### `tx` — Fetch transactions
 
 ```bash
-cargo run -- tx                      # list all transactions
-cargo run -- tx TX-001               # fetch single transaction by ID
+cargo run -- tx                           # list all transactions
+cargo run -- tx TX-001                    # fetch single transaction by ID
+cargo run -- tx --status pending          # filter by status
+cargo run -- tx --status accepted
+cargo run -- tx --status rejected
 ```
 
-GETs `/customers/{id}/transactions` or `/customers/{id}/transactions/{tx_id}`. Useful for inspecting transaction status (`pending`, `accepted`, etc.) and verifying `burned`/`earned` values after checkout operations.
+GETs `/customers/{id}/transactions` or `/customers/{id}/transactions/{tx_id}`. Status filtering is done client-side. Useful for inspecting transaction status and verifying `burned`/`earned` values after checkout operations.
 
 > The older `transactions --id TX-xxx` command also exists but uses a query param instead of a path segment.
+
+---
+
+### `checkout` — Fire a checkout event
+
+```bash
+cargo run -- checkout --total 2000
+cargo run -- checkout --total 2000 --burn 150
+cargo run -- checkout --total 2000 --burn 150 --channel restaurant
+```
+
+Fires a `checkout` event with a generated `transaction_id` (e.g. `TX-a3f2c819`) and today's date. Defaults: `channel=hotel`, `currency=NOK`. Prints state diff after.
+
+Use `tx` to inspect the resulting transaction, `txdelta` to adjust it, and `cargo run -- event '{"action":"checkout_accept",...}'` or a flow to complete it.
 
 ---
 

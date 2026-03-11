@@ -218,7 +218,7 @@ async fn main() -> Result<()> {
             }
 
             let current_burned: i64 = tx
-                .get("points_burned")
+                .get("burned")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
             let current_total: f64 = tx.get("total").and_then(|v| v.as_f64()).unwrap_or(0.0);

@@ -86,6 +86,18 @@ enum Command {
         status: Option<String>,
     },
 
+    /// Accept a pending checkout transaction
+    Accept {
+        /// Transaction ID to accept
+        id: String,
+    },
+
+    /// Reject a pending checkout transaction
+    Reject {
+        /// Transaction ID to reject
+        id: String,
+    },
+
     /// Fire a checkout event with auto-generated transaction_id and today's date
     ///
     /// Example: checkout --total 2000
@@ -210,6 +222,14 @@ async fn main() -> Result<()> {
                 events::point_sub::point_sub(&client, points, &reason).await?;
             }
         },
+
+        Command::Accept { id } => {
+            events::checkout_accept::checkout_accept(&client, &id).await?;
+        }
+
+        Command::Reject { id } => {
+            events::checkout_reject::checkout_reject(&client, &id).await?;
+        }
 
         Command::Checkout { total, burn, channel } => {
             let tx_id = format!("TX-{}", &Uuid::new_v4().to_string()[..8]);

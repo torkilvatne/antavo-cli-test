@@ -136,6 +136,17 @@ GETs `/customers/{id}/transactions` or `/customers/{id}/transactions/{tx_id}`. S
 
 ---
 
+### `accept` / `reject` — Accept or reject a pending checkout
+
+```bash
+cargo run -- accept TX-001
+cargo run -- reject TX-001
+```
+
+Fires `checkout_accept` or `checkout_reject` for the given transaction ID. Prints state diff after.
+
+---
+
 ### `checkout` — Fire a checkout event
 
 ```bash

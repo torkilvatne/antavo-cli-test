@@ -76,9 +76,13 @@ enum Command {
     ///
     /// Example: tx TX-F11-C-177325
     /// Example: tx
+    /// Example: tx --status pending
     Tx {
         /// Transaction ID (optional — omit to list all)
         id: Option<String>,
+        /// Filter by status: pending, accepted, rejected
+        #[arg(long)]
+        status: Option<String>,
     },
 
     /// Adjust a pending transaction's burn or total by delta, then call checkout_update
@@ -196,8 +200,23 @@ async fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
-        Command::Tx { id } => {
-            let result = client.get_transaction(id.as_deref()).await?;
+        Command::Tx { id, status } => {
+            let mut result = client.get_transaction(id.as_deref()).await?;
+            if let Some(ref status_filter) = status {
+                if let Some(data) = result.get_mut("data").and_then(|d| d.as_array_mut()) {
+                    let filtered: Vec<Value> = data
+                        .iter()
+                        .filter(|tx| {
+                            tx.get("status")
+                                .and_then(|s| s.as_str())
+                                .map(|s| s == status_filter.as_str())
+                                .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect();
+                    *data = filtered;
+                }
+            }
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
@@ -327,13 +346,50 @@ async fn run_flow(client: &AntavoClient, number: &str) -> Result<()> {
 }
 
 async fn reset(client: &AntavoClient) -> Result<()> {
+    use serde_json::json;
+
     println!(
-        "Resetting customer {} points to zero spendable...",
+        "Resetting customer {}...",
         client.customer_id_required()?
     );
 
+    // Step 1: fetch all transactions and handle pending/accepted ones
+    let tx_list = client.get_transaction(None).await?;
+    let txs = tx_list
+        .get("data")
+        .and_then(|d| d.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let pending: Vec<String> = txs
+        .iter()
+        .filter(|tx| tx.get("status").and_then(|s| s.as_str()) == Some("pending"))
+        .filter_map(|tx| tx.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+
+    let accepted: Vec<String> = txs
+        .iter()
+        .filter(|tx| tx.get("status").and_then(|s| s.as_str()) == Some("accepted"))
+        .filter_map(|tx| tx.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+
+    if pending.is_empty() && accepted.is_empty() {
+        println!("No pending or accepted transactions to clear.");
+    }
+
+    for tx_id in &pending {
+        println!("Rejecting pending transaction {}...", tx_id);
+        events::checkout_reject::checkout_reject(client, tx_id).await?;
+    }
+
+    for tx_id in &accepted {
+        println!("Refunding accepted transaction {}...", tx_id);
+        events::refund::refund(client, tx_id).await?;
+    }
+
+    // Step 2: drain remaining point_balance to 0
     let state = client.get_customer_state().await?;
-    println!("Current state:");
+    println!("\nState after transaction cleanup:");
     state.print();
 
     if state.reserved > 0 {
@@ -344,28 +400,14 @@ async fn reset(client: &AntavoClient) -> Result<()> {
         );
     }
 
-    if state.pending > 0 {
-        eprintln!(
-            "WARNING: pending={} — cannot auto-clear without transaction IDs. \
-             Accept or reject pending checkouts first.",
-            state.pending
-        );
-    }
-
     if state.point_balance <= 0 {
         println!("point_balance is already <= 0, nothing to drain.");
         return Ok(());
     }
 
-    // Drain spendable to 0: point_sub(point_balance) sets score = spent + reserved
-    // → point_balance = (score - point_balance) - spent - reserved = 0
     let drain = state.point_balance;
-    println!(
-        "Sending point_sub({}) to drain point_balance to 0...",
-        drain
-    );
+    println!("\nSending point_sub({}) to drain point_balance to 0...", drain);
 
-    use serde_json::json;
     let body = json!({
         "customer": client.customer_id_required()?,
         "action": "point_sub",

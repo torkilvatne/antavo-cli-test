@@ -56,20 +56,6 @@ pub async fn opt_in(client: &AntavoClient) -> Result<CreatedCustomer> {
             "is_previous_member_center": true,
             "is_previous_member_hotel": true,
             "is_special_treatment": false,
-            "bank_card1": "12345678",
-            "bank_card_add_date1": "2025-10-31T00:00:00+01:00",
-            "bank_card2": "12345678",
-            "bank_card_add_date2": "2025-10-31T00:00:00+01:00",
-            "bank_card3": "12345678",
-            "bank_card_add_date3": "2025-10-31T00:00:00+01:00",
-            "bank_card4": "12345678",
-            "bank_card_add_date4": "2025-10-31T00:00:00+01:00",
-            "license_plate1": "ASDF1234",
-            "license_plate_add_date1": "2025-10-31T00:00:00+01:00",
-            "license_plate2": "ASDF1234",
-            "license_plate_add_date2": "2025-10-31T00:00:00+01:00",
-            "license_plate3": "ASDF1234",
-            "license_plate_add_date3": "2025-10-31T00:00:00+01:00"
         }
     });
 

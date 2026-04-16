@@ -147,6 +147,25 @@ Fires `checkout_accept` or `checkout_reject` for the given transaction ID. Print
 
 ---
 
+### `rewards` — List, claim, or revoke rewards
+
+```bash
+cargo run -- rewards                          # list active rewards
+cargo run -- rewards --claimed                # list claimed rewards
+cargo run -- rewards --claim REWARD_ID        # claim a reward
+cargo run -- rewards --revoke REWARD_ID       # revoke a previously claimed reward
+```
+
+**List** fetches `GET /customers/{id}/activities/rewards` and outputs each reward with `id`, `title`, `description`, `points`, and `claims` (always `null` for this endpoint — `claims` is only populated on the claimed-rewards endpoint).
+
+**Claimed** fetches `GET /customers/{id}/rewards` and prints the raw JSON response of all rewards the customer has claimed.
+
+**Claim** posts to `/customers/{id}/activities/rewards/{reward_id}/claim`. Deducts the required points and prints a state diff after.
+
+**Revoke** posts to `/customers/{id}/activities/rewards/{reward_id}/revoke`. Restores spent points and prints a state diff after.
+
+---
+
 ### `checkout` — Fire a checkout event
 
 ```bash

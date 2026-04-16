@@ -114,6 +114,24 @@ enum Command {
         channel: String,
     },
 
+    /// Fetch rewards, or claim/revoke a specific reward
+    ///
+    /// Example: rewards
+    /// Example: rewards --claimed
+    /// Example: rewards --claim REWARD_ID
+    /// Example: rewards --revoke REWARD_ID
+    Rewards {
+        /// Show claimed rewards (GET /customers/{id}/rewards)
+        #[arg(long)]
+        claimed: bool,
+        /// Claim a reward by ID
+        #[arg(long)]
+        claim: Option<String>,
+        /// Revoke a previously claimed reward by ID
+        #[arg(long)]
+        revoke: Option<String>,
+    },
+
     /// Adjust a pending transaction's burn or total by delta, then call checkout_update
     ///
     /// Example: txdelta TX-001 --burn 50 --total -200
@@ -268,6 +286,66 @@ async fn main() -> Result<()> {
                 }
             }
             println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        Command::Rewards { claimed, claim, revoke } => {
+            if claimed {
+                let result = client.get_claimed_rewards().await?;
+                let data = result
+                    .get("data")
+                    .and_then(|d| d.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let filtered: Vec<Value> = data
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "id": r.get("id").cloned().unwrap_or(Value::Null),
+                            "title": r.get("title").cloned().unwrap_or(Value::Null),
+                            "description": r.get("description").cloned().unwrap_or(Value::Null),
+                            "points": r.get("points").cloned().unwrap_or(Value::Null),
+                            "claims": r.get("claims").cloned().unwrap_or(Value::Null),
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "data": filtered }))?);
+            } else if let Some(reward_id) = claim {
+                let before = client.get_customer_state().await?;
+                println!("\n[claim {}]", reward_id);
+                let result = client.claim_reward(&reward_id).await?;
+                println!("  Response: {}", serde_json::to_string(&result)?);
+                let after = client.get_customer_state().await?;
+                println!("  State diff:");
+                CustomerState::print_diff(&before, &after);
+            } else if let Some(reward_id) = revoke {
+                let before = client.get_customer_state().await?;
+                println!("\n[revoke {}]", reward_id);
+                let result = client.revoke_reward(&reward_id).await?;
+                println!("  Response: {}", serde_json::to_string(&result)?);
+                let after = client.get_customer_state().await?;
+                println!("  State diff:");
+                CustomerState::print_diff(&before, &after);
+            } else {
+                let result = client.get_rewards().await?;
+                let data = result
+                    .get("data")
+                    .and_then(|d| d.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let filtered: Vec<Value> = data
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "id": r.get("id").cloned().unwrap_or(Value::Null),
+                            "title": r.get("title").cloned().unwrap_or(Value::Null),
+                            "description": r.get("description").cloned().unwrap_or(Value::Null),
+                            "points": r.get("points").cloned().unwrap_or(Value::Null),
+                            "claims": Value::Null,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "data": filtered }))?);
+            }
         }
 
         Command::Txdelta {

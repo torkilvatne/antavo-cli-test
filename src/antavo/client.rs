@@ -204,6 +204,196 @@ impl AntavoClient {
         Ok(json)
     }
 
+    /// GET /customers/{id}/activities/rewards — returns all available rewards for the customer.
+    pub async fn get_rewards(&self) -> Result<Value> {
+        let customer_id = self.customer_id_required()?;
+        let url = format!("{}/customers/{}/activities/rewards", self.base_url, customer_id);
+
+        let parsed = reqwest::Url::parse(&url)?;
+        let host = parsed.host().context("URL has no host")?.to_string();
+        let path = parsed.path().to_string();
+
+        let escher_req = EscherRequestBuilder::new()
+            .with_method("GET")
+            .with_path(&path)
+            .with_host(&host)
+            .with_body(b"")
+            .build()
+            .map_err(|e| anyhow::anyhow!("Escher build error: {}", e))?;
+
+        let signed = sign_request(escher_req, &self.params)
+            .map_err(|e| anyhow::anyhow!("Escher sign error: {}", e))?;
+
+        let mut req = self.client.get(&url).build()?;
+        let headers = req.headers_mut();
+        for (name, value) in signed {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes())
+                    .with_context(|| format!("Invalid header name: {}", name))?,
+                HeaderValue::from_str(&value)
+                    .with_context(|| format!("Invalid header value for {}", name))?,
+            );
+        }
+
+        let resp = self.client.execute(req).await?;
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            bail!("HTTP {} from GET /customers/{}/activities/rewards: {}", status, customer_id, text);
+        }
+
+        serde_json::from_str(&text).with_context(|| format!("Invalid JSON: {}", text))
+    }
+
+    /// POST /customers/{id}/activities/rewards/{reward_id}/claim — claims a reward.
+    pub async fn claim_reward(&self, reward_id: &str) -> Result<Value> {
+        let customer_id = self.customer_id_required()?;
+        let url = format!(
+            "{}/customers/{}/activities/rewards/{}/claim",
+            self.base_url, customer_id, reward_id
+        );
+        let body_bytes = b"{}";
+
+        let parsed = reqwest::Url::parse(&url)?;
+        let host = parsed.host().context("URL has no host")?.to_string();
+        let path = parsed.path().to_string();
+
+        let escher_req = EscherRequestBuilder::new()
+            .with_method("POST")
+            .with_path(&path)
+            .with_host(&host)
+            .with_body(body_bytes)
+            .add_header("Content-Type", "application/json")
+            .build()
+            .map_err(|e| anyhow::anyhow!("Escher build error: {}", e))?;
+
+        let signed = sign_request(escher_req, &self.params)
+            .map_err(|e| anyhow::anyhow!("Escher sign error: {}", e))?;
+
+        let mut req = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(body_bytes.to_vec())
+            .build()?;
+
+        let headers = req.headers_mut();
+        for (name, value) in signed {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes())
+                    .with_context(|| format!("Invalid header name: {}", name))?,
+                HeaderValue::from_str(&value)
+                    .with_context(|| format!("Invalid header value for {}", name))?,
+            );
+        }
+
+        let resp = self.client.execute(req).await?;
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            bail!("HTTP {} from POST .../rewards/{}/claim: {}", status, reward_id, text);
+        }
+
+        serde_json::from_str(&text).with_context(|| format!("Invalid JSON: {}", text))
+    }
+
+    /// POST /customers/{id}/activities/rewards/{reward_id}/revoke — revokes a claimed reward.
+    pub async fn revoke_reward(&self, reward_id: &str) -> Result<Value> {
+        let customer_id = self.customer_id_required()?;
+        let url = format!(
+            "{}/customers/{}/activities/rewards/{}/revoke",
+            self.base_url, customer_id, reward_id
+        );
+        let body_bytes = b"{}";
+
+        let parsed = reqwest::Url::parse(&url)?;
+        let host = parsed.host().context("URL has no host")?.to_string();
+        let path = parsed.path().to_string();
+
+        let escher_req = EscherRequestBuilder::new()
+            .with_method("POST")
+            .with_path(&path)
+            .with_host(&host)
+            .with_body(body_bytes)
+            .add_header("Content-Type", "application/json")
+            .build()
+            .map_err(|e| anyhow::anyhow!("Escher build error: {}", e))?;
+
+        let signed = sign_request(escher_req, &self.params)
+            .map_err(|e| anyhow::anyhow!("Escher sign error: {}", e))?;
+
+        let mut req = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(body_bytes.to_vec())
+            .build()?;
+
+        let headers = req.headers_mut();
+        for (name, value) in signed {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes())
+                    .with_context(|| format!("Invalid header name: {}", name))?,
+                HeaderValue::from_str(&value)
+                    .with_context(|| format!("Invalid header value for {}", name))?,
+            );
+        }
+
+        let resp = self.client.execute(req).await?;
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            bail!("HTTP {} from POST .../rewards/{}/revoke: {}", status, reward_id, text);
+        }
+
+        serde_json::from_str(&text).with_context(|| format!("Invalid JSON: {}", text))
+    }
+
+    /// GET /customers/{id}/rewards — returns claimed rewards for the customer.
+    pub async fn get_claimed_rewards(&self) -> Result<Value> {
+        let customer_id = self.customer_id_required()?;
+        let url = format!("{}/customers/{}/rewards", self.base_url, customer_id);
+
+        let parsed = reqwest::Url::parse(&url)?;
+        let host = parsed.host().context("URL has no host")?.to_string();
+        let path = parsed.path().to_string();
+
+        let escher_req = EscherRequestBuilder::new()
+            .with_method("GET")
+            .with_path(&path)
+            .with_host(&host)
+            .with_body(b"")
+            .build()
+            .map_err(|e| anyhow::anyhow!("Escher build error: {}", e))?;
+
+        let signed = sign_request(escher_req, &self.params)
+            .map_err(|e| anyhow::anyhow!("Escher sign error: {}", e))?;
+
+        let mut req = self.client.get(&url).build()?;
+        let headers = req.headers_mut();
+        for (name, value) in signed {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes())
+                    .with_context(|| format!("Invalid header name: {}", name))?,
+                HeaderValue::from_str(&value)
+                    .with_context(|| format!("Invalid header value for {}", name))?,
+            );
+        }
+
+        let resp = self.client.execute(req).await?;
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            bail!("HTTP {} from GET /customers/{}/rewards: {}", status, customer_id, text);
+        }
+
+        serde_json::from_str(&text).with_context(|| format!("Invalid JSON: {}", text))
+    }
+
     /// Get raw JSON for any customer by ID (used after opt_in to fetch newly created customer).
     pub async fn get_customer_raw_for(&self, customer_id: &str) -> Result<Value> {
         let url = format!("{}/customers/{}", self.base_url, customer_id);
